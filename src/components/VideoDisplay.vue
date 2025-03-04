@@ -44,19 +44,19 @@ let mediaStream = null;
 const defaultVideos = [
   {
     name: 'Beach',
-    url: 'https://github.com/matipina/NCI/blob/main/videos/beach.mp4'
+    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/beach.mp4'
   },
   {
     name: 'Water',
-    url: 'https://github.com/matipina/NCI/blob/main/videos/water.mp4'
+    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/water.mp4'
   },
   {
     name: 'Field',
-    url: 'https://github.com/matipina/NCI/blob/main/videos/field.mp4'
+    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/field.mp4'
   },
   {
     name: 'Moon',
-    url: 'https://github.com/matipina/NCI/blob/main/videos/moon.mp4'
+    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/moon.mp4'
   }
 ];
 
