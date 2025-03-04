@@ -43,12 +43,20 @@ let mediaStream = null;
 // Default videos hosted externally - replace with your actual video URLs
 const defaultVideos = [
   {
-    name: 'Ocean Waves',
-    url: 'https://assets.mixkit.co/videos/preview/mixkit-waves-in-the-water-1164-large.mp4'
+    name: 'Beach',
+    url: 'https://github.com/matipina/NCI/blob/main/videos/beach.mp4'
   },
   {
-    name: 'Clouds',
-    url: 'https://assets.mixkit.co/videos/preview/mixkit-white-sand-beach-and-palm-trees-1564-large.mp4'
+    name: 'Water',
+    url: 'https://github.com/matipina/NCI/blob/main/videos/water.mp4'
+  },
+  {
+    name: 'Field',
+    url: 'https://github.com/matipina/NCI/blob/main/videos/field.mp4'
+  },
+  {
+    name: 'Moon',
+    url: 'https://github.com/matipina/NCI/blob/main/videos/moon.mp4'
   }
 ];
 
