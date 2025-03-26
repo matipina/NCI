@@ -68,7 +68,7 @@ const lastVideoTime = ref(-1);
 
 // Default videos hosted externally
 const defaultVideos = [
-  { name: 'Beach', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/beach.mp4' },
+  { name: 'Clouds', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/clouds.mp4' },
   { name: 'Water', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/water.mp4' },
   { name: 'Field', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/field.mp4' },
   { name: 'Moon', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/moon.mp4' }
