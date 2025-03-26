@@ -61,7 +61,7 @@ const detectionOptions = reactive({
   minPosePresenceConfidence: 0.1,
   minTrackingConfidence: 0.1,
   runningMode: "VIDEO",
-  maxPoses: 3
+  maxPoses: 6
 });
 
 const lastVideoTime = ref(-1);
