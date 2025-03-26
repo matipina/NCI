@@ -41,10 +41,10 @@
 <script setup>
 import { ref, onMounted, onUnmounted, reactive } from 'vue';
 import {
-  PoseLandmarker,
-  FilesetResolver,
-  DrawingUtils
-} from "https://cdn.skypack.dev/@mediapipe/tasks-vision@0.10.0";
+  initializePoseDetection,
+  detectPoses,
+  drawPoseResults
+} from '../logic/poseDetection';
 
 // Refs for DOM elements
 const videoElement = ref(null);
@@ -52,11 +52,10 @@ const overlayCanvas = ref(null);
 const currentVideoSource = ref('');
 const usingWebcam = ref(false);
 let mediaStream = null;
+const webcamReady = ref(false); // Tracks if the webcam is fully initialized
 
 // Detection state variables
 const detectionActive = ref(false);
-const poseLandmarker = ref(null);
-const drawingUtils = ref(null);
 const detectionOptions = reactive({
   minPoseDetectionConfidence: 0.1,
   minPosePresenceConfidence: 0.1,
@@ -67,37 +66,82 @@ const detectionOptions = reactive({
 
 const lastVideoTime = ref(-1);
 
-// Default videos hosted externally - replace with your actual video URLs
+// Default videos hosted externally
 const defaultVideos = [
-  {
-    name: 'Beach',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/beach.mp4'
-  },
-  {
-    name: 'Water',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/water.mp4'
-  },
-  {
-    name: 'Field',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/field.mp4'
-  },
-  {
-    name: 'Moon',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/moon.mp4'
-  }
+  { name: 'Beach', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/beach.mp4' },
+  { name: 'Water', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/water.mp4' },
+  { name: 'Field', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/field.mp4' },
+  { name: 'Moon', url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/moon.mp4' }
 ];
 
-// Initialize with first default video
-onMounted(() => {
-  loadDefaultVideo(defaultVideos[0].url);
-  setupCanvas();
+function updateCanvasSize() {
+  const canvas = overlayCanvas.value;
+  const videoWidth = videoElement.value.videoWidth;
+  const videoHeight = videoElement.value.videoHeight;
 
-  // Initialize pose detection after a short delay to ensure video is loaded
-  setTimeout(async () => {
-    await initializePoseDetection();
-    toggleDetection();
-  }, 1000);
+  if (videoWidth && videoHeight) {
+    // Set canvas dimensions to match video dimensions
+    canvas.width = videoWidth;
+    canvas.height = videoHeight;
+    console.log('Canvas size updated:', canvas.width, canvas.height);
+  } else {
+    // Fallback to window dimensions if video dimensions are not available
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    console.log('Canvas size fallback:', canvas.width, canvas.height);
+  }
+}
+
+function setupCanvas() {
+  if (overlayCanvas.value && videoElement.value) {
+    updateCanvasSize(); // Set initial canvas size
+    window.addEventListener('resize', updateCanvasSize); // Update canvas size on window resize
+  }
+}
+
+function loadDefaultVideo(url) {
+  // Stop the webcam if it's active
+  if (mediaStream) {
+    stopWebcam();
+  }
+
+  // Set the video source to the provided URL
+  usingWebcam.value = false; // Not using the webcam
+  currentVideoSource.value = url;
+
+  // Ensure the video plays after the source is set
+  if (videoElement.value) {
+    videoElement.value.src = url; // Set the video source
+    videoElement.value.onloadedmetadata = () => {
+      videoElement.value.play().catch(err => {
+        console.error('Error playing video:', err);
+      });
+
+      // Update canvas size to match video dimensions
+      updateCanvasSize();
+    };
+  }
+}
+
+
+// Initialize pose detection
+onMounted(async () => {
+  try {
+    // Load the first default video
+    loadDefaultVideo(defaultVideos[0].url);
+
+    // Set up the canvas dimensions
+    setupCanvas();
+
+    // Initialize pose detection
+    await initializePoseDetection(overlayCanvas.value, detectionOptions);
+    console.log('Pose detection initialized');
+  } catch (error) {
+    console.error('Failed to initialize pose detection:', error);
+  }
 });
+
+
 
 // Clean up resources when component is destroyed
 onUnmounted(() => {
@@ -106,44 +150,44 @@ onUnmounted(() => {
   }
 });
 
-// Set up canvas size to match video
-function setupCanvas() {
-  if (overlayCanvas.value && videoElement.value) {
-    updateCanvasSize();
-    window.addEventListener('resize', updateCanvasSize);
+// Run the detection loop
+async function runDetectionLoop() {
+  if (!detectionActive.value || !videoElement.value) return;
+
+  // Ensure webcam is ready before processing
+  if (usingWebcam.value && !webcamReady.value) {
+    console.log('Webcam not ready yet');
+    requestAnimationFrame(runDetectionLoop);
+    return;
+  }
+
+  if (videoElement.value.paused || videoElement.value.ended) {
+    requestAnimationFrame(runDetectionLoop);
+    return;
+  }
+
+  if (lastVideoTime.value !== videoElement.value.currentTime) {
+    lastVideoTime.value = videoElement.value.currentTime;
+
+    try {
+      const results = await detectPoses(videoElement.value, performance.now());
+      drawPoseResults(results, overlayCanvas.value, videoElement.value);
+    } catch (error) {
+      console.error('Error in detection loop:', error);
+    }
+  }
+
+  requestAnimationFrame(runDetectionLoop);
+}
+
+// Start/stop detection
+function toggleDetection() {
+  detectionActive.value = !detectionActive.value;
+  if (detectionActive.value) {
+    runDetectionLoop();
   }
 }
 
-// Update canvas dimensions to match video/viewport
-function updateCanvasSize() {
-  const canvas = overlayCanvas.value;
-  canvas.width = window.innerWidth;
-  canvas.height = window.innerHeight;
-}
-
-// Load a default video from external hosting
-function loadDefaultVideo(url) {
-  if (mediaStream) {
-    stopWebcam();
-  }
-  usingWebcam.value = false;
-  currentVideoSource.value = url;
-
-  // Ensure video plays after source change
-  if (videoElement.value) {
-    videoElement.value.play().catch(err => {
-      console.error('Error playing video:', err);
-    });
-  }
-}
-
-// Handle when video metadata is loaded
-function onVideoLoaded() {
-  updateCanvasSize();
-  console.log('Video loaded:', videoElement.value.videoWidth, 'x', videoElement.value.videoHeight);
-}
-
-// Activate webcam input
 async function activateWebcam() {
   try {
     // Stop any currently playing video
@@ -154,12 +198,25 @@ async function activateWebcam() {
 
     // Get webcam stream
     mediaStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: 'environment' }
+      video: { facingMode: 'environment' } // Use 'user' for front camera
     });
 
     // Attach stream to video element
     videoElement.value.srcObject = mediaStream;
-    videoElement.value.play();
+
+    // Ensure the video element starts playing
+    videoElement.value.onloadedmetadata = () => {
+      videoElement.value.play().catch(err => {
+        console.error('Error playing video:', err);
+      });
+
+      // Update canvas size to match webcam dimensions
+      updateCanvasSize();
+
+      // Set webcamReady to true
+      webcamReady.value = true;
+    };
+
     usingWebcam.value = true;
   } catch (err) {
     console.error('Error accessing webcam:', err);
@@ -167,209 +224,24 @@ async function activateWebcam() {
   }
 }
 
+
 // Stop webcam stream
 function stopWebcam() {
   if (mediaStream) {
+    // Stop all tracks in the media stream
     mediaStream.getTracks().forEach(track => track.stop());
     mediaStream = null;
+
+    // Detach the stream from the video element
     if (videoElement.value) {
       videoElement.value.srcObject = null;
     }
   }
+
+  // Reset webcam-related state
   usingWebcam.value = false;
+  webcamReady.value = false;
 }
-
-// Handle user-uploaded video files
-function handleFileUpload(event) {
-  const file = event.target.files[0];
-  if (!file) return;
-
-  // Stop webcam if active
-  if (mediaStream) {
-    stopWebcam();
-  }
-
-  // Create object URL for the video file
-  const objectUrl = URL.createObjectURL(file);
-  currentVideoSource.value = objectUrl;
-  usingWebcam.value = false;
-
-  // Clean up previous object URLs to avoid memory leaks
-  return () => {
-    URL.revokeObjectURL(objectUrl);
-  };
-}
-
-// Initialize the pose landmarker
-async function initializePoseDetection() {
-  console.log('Initializing pose detection...');
-
-  try {
-    // Create a vision tasks runner with the pose detection model
-    const vision = await FilesetResolver.forVisionTasks(
-      "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@0.10.0/wasm"
-    );
-
-    // Initialize the pose landmarker with the lite model for better performance
-    poseLandmarker.value = await PoseLandmarker.createFromOptions(vision, {
-      baseOptions: {
-        modelAssetPath: `https://storage.googleapis.com/mediapipe-models/pose_landmarker/pose_landmarker_lite/float16/1/pose_landmarker_lite.task`,
-        delegate: "GPU" // Use GPU acceleration when available
-      },
-      runningMode: detectionOptions.runningMode,
-      numPoses: detectionOptions.maxPoses,
-      minPoseDetectionConfidence: detectionOptions.minPoseDetectionConfidence,
-      minPosePresenceConfidence: detectionOptions.minPosePresenceConfidence,
-      minTrackingConfidence: detectionOptions.minTrackingConfidence
-    });
-
-    // Set up drawing utilities
-    const canvasCtx = overlayCanvas.value.getContext('2d');
-    drawingUtils.value = new DrawingUtils(canvasCtx);
-
-    console.log('Pose detection initialized successfully');
-    return true;
-  } catch (error) {
-    console.error('Error initializing pose detection:', error);
-    return false;
-  }
-}
-
-async function updateDetectionSettings() {
-  // If detection is active, we need to restart it with new settings
-  const wasActive = detectionActive.value;
-
-  if (wasActive) {
-    // Stop detection temporarily
-    detectionActive.value = false;
-  }
-
-  // Re-initialize with new settings
-  await initializePoseDetection();
-
-  // Restart if it was active
-  if (wasActive) {
-    detectionActive.value = true;
-    runDetectionLoop();
-  }
-}
-
-// Toggle pose detection on/off
-async function toggleDetection() {
-  if (detectionActive.value) {
-    // Turn off detection
-    detectionActive.value = false;
-    console.log('Detection stopped');
-  } else {
-    // Initialize if not already done
-    if (!poseLandmarker.value) {
-      const initialized = await initializePoseDetection();
-      if (!initialized) {
-        console.error('Could not initialize pose detection');
-        return;
-      }
-    }
-
-    // Start detection
-    detectionActive.value = true;
-    console.log('Detection started');
-    lastVideoTime.value = -1; // Reset last processed frame time
-    runDetectionLoop();
-  }
-}
-
-// Run the detection loop for video
-async function runDetectionLoop() {
-  // Exit if detection is disabled or not properly set up
-  if (!detectionActive.value || !poseLandmarker.value || !videoElement.value) {
-    return;
-  }
-
-  // Don't process if video is paused or ended
-  if (videoElement.value.paused || videoElement.value.ended) {
-    requestAnimationFrame(runDetectionLoop);
-    return;
-  }
-
-  // Only process if the frame has changed
-  if (lastVideoTime.value !== videoElement.value.currentTime) {
-    lastVideoTime.value = videoElement.value.currentTime;
-
-    // Get current timestamp for the detection
-    const startTimeMs = performance.now();
-
-    try {
-      // Process the current video frame
-      poseLandmarker.value.detectForVideo(videoElement.value, startTimeMs, (result) => {
-        // Draw the detection results
-        drawPoseResults(result);
-      });
-    } catch (error) {
-      console.error('Error in detection loop:', error);
-    }
-  }
-
-  // Continue the loop
-  if (detectionActive.value) {
-    requestAnimationFrame(runDetectionLoop);
-  }
-}
-
-// Draw pose detection results on the canvas
-function drawPoseResults(results) {
-  if (!overlayCanvas.value || !drawingUtils.value) return;
-
-  const ctx = overlayCanvas.value.getContext('2d');
-  const width = overlayCanvas.value.width;
-  const height = overlayCanvas.value.height;
-
-  // Clear previous drawing
-  ctx.clearRect(0, 0, width, height);
-
-  // If no poses detected, just return
-  if (!results.landmarks || results.landmarks.length === 0) return;
-
-  // Draw pose landmarks
-  ctx.save();
-
-  // Scale drawing to match video dimensions while maintaining canvas size
-  const videoWidth = videoElement.value.videoWidth;
-  const videoHeight = videoElement.value.videoHeight;
-
-  // Calculate scale to fit video properly in the container
-  const scaleX = width / videoWidth;
-  const scaleY = height / videoHeight;
-  const scale = Math.min(scaleX, scaleY);
-
-  // Calculate centering offsets
-  const offsetX = (width - videoWidth * scale) / 2;
-  const offsetY = (height - videoHeight * scale) / 2;
-
-  // Apply transformations
-  ctx.translate(offsetX, offsetY);
-  ctx.scale(scale, scale);
-
-  // Draw each detected pose
-  for (const landmarks of results.landmarks) {
-    // Draw the pose landmarks (joints)
-    drawingUtils.value.drawLandmarks(landmarks, {
-      radius: 4,
-      color: '#FF0000',
-      lineWidth: 2
-    });
-
-    // Draw the connections (skeleton)
-    drawingUtils.value.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
-      color: '#00FF00',
-      lineWidth: 2
-    });
-  }
-
-  ctx.restore();
-}
-
-
-
 </script>
 
 <style scoped>
