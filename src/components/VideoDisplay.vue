@@ -9,7 +9,6 @@
 
     <!-- Source Selection Controls -->
     <div class="controls-panel">
-      <h2>AI Nature Explorer</h2>
       <button @click="toggleDetection" :class="{ active: detectionActive }">
         {{ detectionActive ? 'Stop Detection' : 'Start Detection' }}
       </button>
@@ -28,10 +27,6 @@
           <button @click="activateWebcam" :class="{ active: usingWebcam }">
             Webcam
           </button>
-          <div class="file-upload">
-            <label for="video-upload">Upload Video</label>
-            <input type="file" id="video-upload" @change="handleFileUpload" accept="video/*" />
-          </div>
         </div>
       </div>
     </div>
@@ -62,8 +57,8 @@ const detectionOptions = reactive({
   minPosePresenceConfidence: 0.3,
   minTrackingConfidence: 0.9,
   runningMode: 'VIDEO',
-  maxPoses: 1, // Defaulting to 1, adjustable via slider
-  outputSegmentationMasks: true, // Keep true if you want masks
+  maxPoses: 1,
+  outputSegmentationMasks: true,
 })
 
 // Animation frame ID for cleanup
@@ -143,20 +138,6 @@ function loadDefaultVideo(url) {
   cleanupObjectUrl()
   usingWebcam.value = false
   currentVideoSource.value = url
-}
-
-// Handle video file upload
-function handleFileUpload(event) {
-  const file = event.target.files[0]
-  if (!file) return
-
-  stopWebcam()
-  cleanupObjectUrl()
-  usingWebcam.value = false
-  const objectURL = URL.createObjectURL(file)
-  uploadedObjectUrl.value = objectURL
-  currentVideoSource.value = objectURL
-  event.target.value = '' // Clear input
 }
 
 // Initialize on component mount
@@ -394,24 +375,5 @@ function stopWebcam() {
   /* Allow buttons to wrap on smaller screens */
   justify-content: center;
   gap: 10px;
-}
-
-.file-upload label {
-  display: inline-block;
-  padding: 8px 15px;
-  background-color: #5cb85c;
-  color: white;
-  border-radius: 5px;
-  cursor: pointer;
-  transition: background-color 0.2s ease;
-}
-
-.file-upload label:hover {
-  background-color: #4cae4c;
-}
-
-.file-upload input[type='file'] {
-  display: none;
-  /* Hide the default file input */
 }
 </style>
