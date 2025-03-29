@@ -4,10 +4,8 @@
     <video ref="videoElement" class="fullscreen-video" :src="currentVideoSource" crossorigin="anonymous" muted autoplay
       loop playsinline @loadedmetadata="onVideoLoaded"></video>
 
-    <!-- Canvas Overlay for Future ML Visualizations -->
     <canvas ref="overlayCanvas" class="fullscreen-canvas"></canvas>
 
-    <!-- Source Selection Controls -->
     <div class="controls-panel">
       <button @click="toggleDetection" :class="{ active: detectionActive }">
         {{ detectionActive ? 'Stop Detection' : 'Start Detection' }}
@@ -18,11 +16,10 @@
       </div>
 
       <div class="video-sources">
-        <h3>Video Source</h3>
         <div class="source-buttons">
-          <button v-for="(video, index) in defaultVideos" :key="index" @click="loadDefaultVideo(video.url)"
+          <button v-for="video in availableVideos" :key="video.id" @click="loadVideo(video.url)"
             :class="{ active: currentVideoSource === video.url && !usingWebcam }">
-            {{ video.name }}
+            {{ video.location }}
           </button>
           <button @click="activateWebcam" :class="{ active: usingWebcam }">
             Webcam
@@ -45,51 +42,31 @@ import {
 const videoElement = ref(null)
 const overlayCanvas = ref(null)
 const currentVideoSource = ref('')
+const availableVideos = ref([])
 const usingWebcam = ref(false)
 let mediaStream = null
-const webcamReady = ref(false) // Keep for ensuring webcam dimensions are ready
+const webcamReady = ref(false)
 const uploadedObjectUrl = ref(null)
 
 // Detection state variables
 const detectionActive = ref(false)
 const detectionOptions = reactive({
-  minPoseDetectionConfidence: 0.1,
-  minPosePresenceConfidence: 0.3,
-  minTrackingConfidence: 0.9,
+  minPoseDetectionConfidence: 0.04,
+  minPosePresenceConfidence: 0.1,
+  minTrackingConfidence: 0.98,
   runningMode: 'VIDEO',
-  maxPoses: 1,
+  maxPoses: 2,
   outputSegmentationMasks: true,
 })
 
 // Animation frame ID for cleanup
 let animationFrameId = null
 
-// Default videos hosted externally
-const defaultVideos = [
-  {
-    name: 'Clouds',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/clouds.mp4',
-  },
-  {
-    name: 'Water',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/water.mp4',
-  },
-  {
-    name: 'Field',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/field.mp4',
-  },
-  {
-    name: 'Moon',
-    url: 'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/moon.mp4',
-  },
-]
-
 // Cleanup function for Object URLs
 function cleanupObjectUrl() {
   if (uploadedObjectUrl.value) {
     URL.revokeObjectURL(uploadedObjectUrl.value)
     uploadedObjectUrl.value = null
-    // console.log('Revoked previous object URL'); // Removed log
   }
 }
 
@@ -106,7 +83,6 @@ function updateCanvasSize() {
   if (canvas.width !== targetWidth || canvas.height !== targetHeight) {
     canvas.width = targetWidth
     canvas.height = targetHeight
-    // console.log('Canvas size updated:', canvas.width, canvas.height); // Removed log
   }
 }
 
@@ -133,21 +109,40 @@ function onVideoLoaded() {
 }
 
 // Load one of the default videos
-function loadDefaultVideo(url) {
+function loadVideo(url) {
   stopWebcam()
   cleanupObjectUrl()
   usingWebcam.value = false
   currentVideoSource.value = url
 }
 
-// Initialize on component mount
 onMounted(async () => {
   if (!videoElement.value || !overlayCanvas.value) {
     console.error('Video or Canvas element not found on mount.')
     return
   }
+
+  let initialVideoUrl = ''
+
+  // Fetch video list using the new function
   try {
-    loadDefaultVideo(defaultVideos[0].url)
+    const videoData = await fetchVideoData()
+    availableVideos.value = videoData // Store fetched data
+
+    if (availableVideos.value.length > 0 && availableVideos.value[0].url) {
+      initialVideoUrl = availableVideos.value[0].url
+    } else {
+      console.warn('No videos loaded or first video has no URL')
+    }
+  } catch (error) {
+    console.error('Error fetching videos.', error)
+  }
+
+  // Initialize canvas and pose detection (rest remains the same)
+  try {
+    if (initialVideoUrl) {
+      loadVideo(initialVideoUrl)
+    }
     setupCanvas()
     await initializePoseDetection(overlayCanvas.value, detectionOptions)
     console.log('Pose detection initialized')
@@ -204,6 +199,34 @@ async function runDetectionLoop() {
   // Request the next frame if detection is still active
   if (detectionActive.value) {
     animationFrameId = requestAnimationFrame(runDetectionLoop)
+  }
+}
+
+async function fetchVideoData() {
+  let videosJsonUrl = ''
+
+  // Determine JSON URL based on environment
+  if (import.meta.env.MODE === 'development') {
+    videosJsonUrl = `${import.meta.env.BASE_URL}videos.json`
+    console.log('Development mode: Fetching local videos.json')
+  } else {
+    videosJsonUrl =
+      'https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/videos.json' // CDN URL
+    console.log('Production mode: Fetching CDN videos.json')
+  }
+
+  try {
+    const response = await fetch(videosJsonUrl)
+    if (!response.ok) {
+      throw new Error(
+        `HTTP error! status: ${response.status} fetching ${videosJsonUrl}`,
+      )
+    }
+    const videoData = await response.json()
+    return videoData // Return the fetched array
+  } catch (error) {
+    console.error('Failed to fetch or parse video list:', error)
+    throw error // Re-throw the error to be caught in onMounted
   }
 }
 

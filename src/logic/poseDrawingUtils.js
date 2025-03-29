@@ -21,14 +21,13 @@ function ensureMaskCanvasInitialized() {
 }
 
 /**
- * Calculates and draws a bounding box around the provided pose landmarks.
- * @param {CanvasRenderingContext2D} ctx - The canvas context (already scaled/translated).
+ * Calculates the bounding box for a given set of pose landmarks.
  * @param {Array<Object>} landmarks - Array of landmarks for a single pose.
- * @param {number} videoWidth - Original width of the video frame (for scaling).
- * @param {number} videoHeight - Original height of the video frame (for scaling).
+ * @returns {Object|null} An object with { minX, minY, maxX, maxY, normalizedWidth, normalizedHeight }
+ *                        or null if landmarks are invalid.
  */
-export function drawPoseBoundingBox(ctx, landmarks, videoWidth, videoHeight) {
-  if (!landmarks || landmarks.length === 0) return
+export function calculatePoseBoundingBox(landmarks) {
+  if (!landmarks || landmarks.length === 0) return null
 
   let minX = 1.0,
     minY = 1.0,
@@ -42,17 +41,41 @@ export function drawPoseBoundingBox(ctx, landmarks, videoWidth, videoHeight) {
   }
 
   if (minX <= maxX && minY <= maxY) {
-    ctx.save()
-    ctx.strokeStyle = '#00FF00' // Green box
-    ctx.lineWidth = 2
-    ctx.strokeRect(
-      minX * videoWidth,
-      minY * videoHeight,
-      (maxX - minX) * videoWidth,
-      (maxY - minY) * videoHeight,
-    )
-    ctx.restore()
+    return {
+      minX,
+      minY,
+      maxX,
+      maxY,
+      normalizedWidth: maxX - minX,
+      normalizedHeight: maxY - minY,
+    }
+  } else {
+    return null // Invalid box
   }
+}
+
+/**
+ * Draws a bounding box using pre-calculated dimensions.
+ * @param {CanvasRenderingContext2D} ctx - The canvas context (already scaled/translated).
+ * @param {Object} box - The bounding box object from calculatePoseBoundingBox.
+ * @param {number} videoWidth - Original width of the video frame (for scaling).
+ * @param {number} videoHeight - Original height of the video frame (for scaling).
+ */
+export function drawPoseBoundingBox(ctx, box, videoWidth, videoHeight) {
+  // Expects box = { minX, minY, maxX, maxY, normalizedWidth, normalizedHeight }
+  if (!box) return // Don't draw if box is null
+
+  ctx.save()
+  ctx.strokeStyle = '#ffffff'
+  ctx.lineWidth = 2
+  // Draw rectangle using video dimensions (context is already scaled)
+  ctx.strokeRect(
+    box.minX * videoWidth,
+    box.minY * videoHeight,
+    box.normalizedWidth * videoWidth, // Use pre-calculated width
+    box.normalizedHeight * videoHeight, // Use pre-calculated height
+  )
+  ctx.restore()
 }
 
 /**
@@ -118,6 +141,6 @@ export function drawManualMask(mask, targetCtx, videoWidth, videoHeight) {
   } catch (error) {
     console.error('Error processing or drawing manual mask:', error)
   } finally {
-    mask.close() // IMPORTANT: Ensure mask is always closed
+    mask.close()
   }
 }

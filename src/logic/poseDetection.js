@@ -6,12 +6,15 @@ import {
   DrawingUtils,
 } from 'https://cdn.skypack.dev/@mediapipe/tasks-vision@latest'
 
-// Import drawing utilities from the new file
-import { drawPoseBoundingBox, drawManualMask } from './poseDrawingUtils.js'
+import {
+  calculatePoseBoundingBox,
+  drawPoseBoundingBox,
+  drawManualMask,
+} from './poseDrawingUtils.js'
 
 // Module-level variables for MediaPipe interaction
 let poseLandmarker = null
-let drawingUtils = null // Keep DrawingUtils for landmarks/connectors
+let drawingUtils = null
 
 /**
  * Initialize the PoseLandmarker.
@@ -19,7 +22,6 @@ let drawingUtils = null // Keep DrawingUtils for landmarks/connectors
  * @param {Object} options - Detection options from the calling component.
  */
 export async function initializePoseDetection(canvas, options) {
-  // console.log('Initializing pose detection...');
   try {
     const vision = await FilesetResolver.forVisionTasks(
       'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm',
@@ -36,12 +38,10 @@ export async function initializePoseDetection(canvas, options) {
       minPoseDetectionConfidence: options.minPoseDetectionConfidence || 0.5,
       minPosePresenceConfidence: options.minPosePresenceConfidence || 0.5,
       minTrackingConfidence: options.minTrackingConfidence || 0.5,
-      // Ensure this option is passed correctly
       outputSegmentationMasks: options.outputSegmentationMasks ?? false,
     })
 
     // Initialize DrawingUtils using the main canvas context
-    // This is still needed for drawing landmarks and connectors
     drawingUtils = new DrawingUtils(canvas.getContext('2d'))
 
     console.log('Pose detection initialized successfully.')
@@ -61,7 +61,6 @@ export function detectPoses(videoElement, timestamp) {
   if (!poseLandmarker) {
     throw new Error('PoseLandmarker is not initialized')
   }
-  // detectForVideo is synchronous in VIDEO mode
   return poseLandmarker.detectForVideo(videoElement, timestamp)
 }
 
@@ -73,7 +72,6 @@ export function detectPoses(videoElement, timestamp) {
  */
 export function drawPoseResults(results, canvas, videoElement) {
   // Ensure necessary components are ready
-  // Note: drawingUtils is checked here, it's initialized in initializePoseDetection
   if (!drawingUtils || !canvas || !results) return
 
   const ctx = canvas.getContext('2d')
@@ -96,18 +94,32 @@ export function drawPoseResults(results, canvas, videoElement) {
   ctx.translate(offsetX, offsetY)
   ctx.scale(scale, scale)
 
-  // --- Draw Segmentation Mask ---
-  // Check if masks exist in results and pass the first one to the drawing util
-  if (results.segmentationMasks && results.segmentationMasks.length > 0) {
-    // Pass the mask object directly, it will be closed inside drawManualMask
-    drawManualMask(results.segmentationMasks[0], ctx, videoWidth, videoHeight)
-  }
-
-  // --- Draw Poses ---
+  // --- Define Size Thresholds (Normalized 0.0 to 1.0) ---
+  const maxAllowedSize = 0.55 // Max width/height as 80% of video dimension
+  const minAllowedSize = 0.05 // Min width/height as 5% of video dimension
   if (results.landmarks && results.landmarks.length > 0) {
     for (const landmarks of results.landmarks) {
+      const box = calculatePoseBoundingBox(landmarks)
+
+      // Skip if box calculation failed
+      if (!box) continue
+
+      if (
+        box.normalizedWidth < minAllowedSize ||
+        box.normalizedWidth > maxAllowedSize ||
+        box.normalizedHeight < minAllowedSize ||
+        box.normalizedHeight > maxAllowedSize
+      ) {
+        // console.log("Skipping pose due to size:", box.normalizedWidth, box.normalizedHeight);
+        continue // Skip drawing this pose
+      }
+      // Check if masks exist in results and pass the first one to the drawing util
+      if (results.segmentationMasks && results.segmentationMasks.length > 0) {
+        drawManualMask(results.segmentationMasks[0], ctx, videoWidth, videoHeight)
+      }
+
       // Call helper to draw bounding box
-      drawPoseBoundingBox(ctx, landmarks, videoWidth, videoHeight)
+      drawPoseBoundingBox(ctx, box, videoWidth, videoHeight)
 
       // Use DrawingUtils for connectors and landmarks
       drawingUtils.drawConnectors(landmarks, PoseLandmarker.POSE_CONNECTIONS, {
@@ -116,7 +128,7 @@ export function drawPoseResults(results, canvas, videoElement) {
       })
       drawingUtils.drawLandmarks(landmarks, {
         radius: 4,
-        color: '#FF0000',
+        color: '#0c09346c',
         lineWidth: 2,
       })
     }

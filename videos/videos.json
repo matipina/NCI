@@ -1,0 +1,32 @@
+[
+  {
+    "id": "southafrica01",
+    "location": "Madikwe Game Reserve, South Africa",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/Madikwe.mp4"
+  },
+  {
+    "id": "fairbanks_alaska_01",
+    "location": "Fairbanks, Alaska",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/fairbanks_alaska_01.mp4"
+  },
+  {
+    "id": "monreal_spain_01",
+    "location": "Monreal, Spain",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/monreal_spain_01.mp4"
+  },
+  {
+    "id": "izegem_belgium_01",
+    "location": "Izegem, Belgium",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/izegem_belgium_01.mp4"
+  },
+  {
+    "id": "iowa_usa_01",
+    "location": "Iowa, USA",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/iowa_usa_01.mp4"
+  },
+  {
+    "id": "sabi_sand_sa_01",
+    "location": "Sabi Sand Game Reserve, South Africa",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/sabi_sand_sa_01.mp4"
+  }
+]
