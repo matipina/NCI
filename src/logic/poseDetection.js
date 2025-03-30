@@ -34,7 +34,7 @@ export async function initializePoseDetection(canvas, options) {
         ...options.baseOptions,
       },
       runningMode: options.runningMode || 'VIDEO',
-      numPoses: options.numPoses || 1,
+      numPoses: options.maxPoses || 3,
       minPoseDetectionConfidence: options.minPoseDetectionConfidence || 0.5,
       minPosePresenceConfidence: options.minPosePresenceConfidence || 0.5,
       minTrackingConfidence: options.minTrackingConfidence || 0.5,

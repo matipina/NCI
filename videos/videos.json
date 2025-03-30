@@ -28,5 +28,25 @@
     "id": "sabi_sand_sa_01",
     "location": "Sabi Sand Game Reserve, South Africa",
     "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/sabi_sand_sa_01.mp4"
+  },
+  {
+    "id": "taganga_colombia_01",
+    "location": "Taganga, Colombia",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/taganga_colombia_01.mp4"
+  },
+  {
+    "id": "laikipia_kenya_01",
+    "location": "Laikipia County, Kenya",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/laikipia_kenya_01.mp4"
+  },
+  {
+    "id": "graskop_sa_01",
+    "location": "Graskop, South Africa",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/graskop_sa_01.mp4"
+  },
+  {
+    "id": "sochi_russia_01",
+    "location": "Sochi, Russia",
+    "url": "https://cdn.jsdelivr.net/gh/matipina/NCI@main/videos/sochi_russia_01.mp4"
   }
 ]

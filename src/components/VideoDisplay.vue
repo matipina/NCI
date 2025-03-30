@@ -1,28 +1,26 @@
 <template>
   <div class="video-container">
-    <!-- Video Element (Fullscreen) -->
     <video ref="videoElement" class="fullscreen-video" :src="currentVideoSource" crossorigin="anonymous" muted autoplay
       loop playsinline @loadedmetadata="onVideoLoaded"></video>
 
     <canvas ref="overlayCanvas" class="fullscreen-canvas"></canvas>
 
+    <div class="video-info-display">
+      {{ currentLocation || 'Loading...' }}
+    </div>
+    <button @click="toggleCamera" class="camera-toggle-button" :class="{ active: usingWebcam }"
+      aria-label="Toggle Camera" title="Toggle Camera">
+      <img :src="cameraIconUrl" alt="Camera Icon" />
+    </button>
+
     <div class="controls-panel">
       <button @click="toggleDetection" :class="{ active: detectionActive }">
         {{ detectionActive ? 'Stop Detection' : 'Start Detection' }}
       </button>
-      <div class="slider-control">
-        <label>Max Poses: {{ detectionOptions.maxPoses }}</label>
-        <input type="range" min="1" max="10" v-model.number="detectionOptions.maxPoses" />
-      </div>
-
       <div class="video-sources">
         <div class="source-buttons">
-          <button v-for="video in availableVideos" :key="video.id" @click="loadVideo(video.url)"
-            :class="{ active: currentVideoSource === video.url && !usingWebcam }">
-            {{ video.location }}
-          </button>
-          <button @click="activateWebcam" :class="{ active: usingWebcam }">
-            Webcam
+          <button @click="loadRandomVideo()">
+            Next
           </button>
         </div>
       </div>
@@ -37,6 +35,7 @@ import {
   detectPoses,
   drawPoseResults,
 } from '../logic/poseDetection'
+import cameraIconUrl from '../assets/camera.svg'
 
 // Refs for DOM elements
 const videoElement = ref(null)
@@ -46,20 +45,21 @@ const availableVideos = ref([])
 const usingWebcam = ref(false)
 let mediaStream = null
 const webcamReady = ref(false)
-const uploadedObjectUrl = ref(null)
 
-// Detection state variables
+const currentLocation = ref('');
+let lastVideoIndex = ref(-1)
+
+const uploadedObjectUrl = ref(null)
 const detectionActive = ref(false)
 const detectionOptions = reactive({
-  minPoseDetectionConfidence: 0.04,
+  minPoseDetectionConfidence: 0.1,
   minPosePresenceConfidence: 0.1,
   minTrackingConfidence: 0.98,
   runningMode: 'VIDEO',
-  maxPoses: 2,
+  maxPoses: 3,
   outputSegmentationMasks: true,
 })
 
-// Animation frame ID for cleanup
 let animationFrameId = null
 
 // Cleanup function for Object URLs
@@ -116,40 +116,65 @@ function loadVideo(url) {
   currentVideoSource.value = url
 }
 
+function loadRandomVideo() {
+  const numVideos = availableVideos.value.length;
+  if (numVideos === 0) {
+    console.log('No available videos.')
+  }
+  let randomIndex;
+  if (numVideos === 1) {
+    randomIndex = 0; // Only one choice
+  } else {
+    // Generate random index until it's different from the last one
+    do {
+      randomIndex = Math.floor(Math.random() * numVideos);
+    } while (randomIndex === lastVideoIndex.value);
+
+    lastVideoIndex.value = randomIndex;
+    const selectedVideo = availableVideos.value[randomIndex];
+    currentLocation.value = selectedVideo.location;
+    console.log(`Loading random video: ${selectedVideo.location} (Index: ${randomIndex})`);
+    loadVideo(selectedVideo.url);
+  }
+}
+
 onMounted(async () => {
   if (!videoElement.value || !overlayCanvas.value) {
-    console.error('Video or Canvas element not found on mount.')
-    return
+    console.error('Video or Canvas element not found on mount.');
+    return;
   }
-
-  let initialVideoUrl = ''
 
   // Fetch video list using the new function
   try {
-    const videoData = await fetchVideoData()
-    availableVideos.value = videoData // Store fetched data
+    const videoData = await fetchVideoData(); // Assuming fetchVideoData is defined elsewhere
+    availableVideos.value = videoData; // Store fetched data
 
-    if (availableVideos.value.length > 0 && availableVideos.value[0].url) {
-      initialVideoUrl = availableVideos.value[0].url
+    // --- Load Initial Random Video ---
+    if (availableVideos.value.length > 0) {
+      loadRandomVideo(); // Call the function to load a random video
     } else {
-      console.warn('No videos loaded or first video has no URL')
+      console.warn('No videos available to load.');
+      // Handle the case where no videos are loaded (e.g., show a message)
+      currentLocation.value = 'No Videos Available';
     }
+    // --- End Load Initial Random Video ---
+
   } catch (error) {
-    console.error('Error fetching videos.', error)
+    console.error('Error fetching videos.', error);
+    currentLocation.value = 'Error Loading Videos';
   }
 
-  // Initialize canvas and pose detection (rest remains the same)
+  // Initialize canvas and pose detection
   try {
-    if (initialVideoUrl) {
-      loadVideo(initialVideoUrl)
-    }
-    setupCanvas()
-    await initializePoseDetection(overlayCanvas.value, detectionOptions)
-    console.log('Pose detection initialized')
+    setupCanvas(); // Setup canvas dimensions
+    await initializePoseDetection(overlayCanvas.value, detectionOptions); // Initialize MediaPipe
+    console.log('Pose detection initialized');
+    // Optional: Auto-start detection if desired
+    // toggleDetection();
   } catch (error) {
-    console.error('Failed to initialize pose detection:', error)
+    console.error('Failed to initialize pose detection:', error);
   }
-})
+});
 
 // Cleanup on component unmount
 onUnmounted(() => {
@@ -160,10 +185,8 @@ onUnmounted(() => {
     cancelAnimationFrame(animationFrameId)
   }
   detectionActive.value = false
-  // console.log('Component unmounted, cleaned up resources.'); // Removed log
 })
 
-// --- Simplified Detection Loop ---
 async function runDetectionLoop() {
   // Check if detection should run (standard checks)
   if (
@@ -245,6 +268,18 @@ function toggleDetection() {
       cancelAnimationFrame(animationFrameId)
       animationFrameId = null
     }
+  }
+}
+
+function toggleCamera() {
+  if (usingWebcam.value) {
+    // If webcam is ON, switch back to a random video
+    console.log("Switching from webcam to random video...");
+    loadRandomVideo(); // This implicitly calls stopWebcam via loadDefaultVideo
+  } else {
+    // If webcam is OFF, activate it
+    console.log("Activating webcam...");
+    activateWebcam(); // Call the function to turn on the webcam
   }
 }
 
@@ -362,23 +397,6 @@ function stopWebcam() {
   /* Highlight active state */
 }
 
-.slider-control {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  width: 100%;
-  justify-content: center;
-}
-
-.slider-control label {
-  white-space: nowrap;
-}
-
-.slider-control input[type='range'] {
-  flex-grow: 1;
-  max-width: 200px;
-}
-
 .video-sources {
   display: flex;
   flex-direction: column;
@@ -398,5 +416,55 @@ function stopWebcam() {
   /* Allow buttons to wrap on smaller screens */
   justify-content: center;
   gap: 10px;
+}
+
+.video-info-display {
+  position: absolute;
+  top: 20px;
+  left: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  color: white;
+  padding: 8px 12px;
+  border-radius: 4px;
+  font-size: 1rem;
+  z-index: 10;
+  white-space: nowrap;
+}
+
+.camera-toggle-button {
+  position: absolute;
+  top: 20px;
+  right: 20px;
+  background: rgba(0, 0, 0, 0.7);
+  border: none;
+  padding: 8px;
+  border-radius: 50%;
+  /* Circular */
+  cursor: pointer;
+  z-index: 11;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background-color 0.2s;
+}
+
+.camera-toggle-button img {
+  width: 24px;
+  /* Adjust size as needed */
+  height: 24px;
+  /* Adjust size as needed */
+  display: block;
+  /* Prevents extra space below image */
+  /* Optional: Filter to make SVG white if it's black */
+  filter: invert(1) brightness(2);
+}
+
+.camera-toggle-button:hover {
+  background: rgba(80, 80, 80, 0.8);
+}
+
+.camera-toggle-button.active {
+  background: rgba(0, 120, 212, 0.8);
+  /* Blue when active */
 }
 </style>
